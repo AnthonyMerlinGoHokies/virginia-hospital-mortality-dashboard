@@ -1,4 +1,4 @@
-# 🏥 Virginia Hospital Mortality Intelligence Dashboard
+# Virginia Hospital Mortality Intelligence Dashboard
 
 A comprehensive healthcare analytics dashboard for risk-adjusted mortality analysis and quality benchmarking, built for hospital quality teams and healthcare data analysts.
 
