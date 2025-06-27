@@ -78,7 +78,7 @@ The dashboard accepts CSV files with the following structure:
 | deaths | Total deaths | "21" |
 | benchmark | Performance vs national | "Better than National" |
 
-## 🏥 Healthcare Context
+## Healthcare Context
 
 ### Why This Matters
 - **Patient Safety**: Direct impact on clinical outcomes
