@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virginia Hospital Mortality Intelligence Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .header {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.2em;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .metric-card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            transition: transform 0.3s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .metric-value {
+            font-size: 3em;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .metric-label {
+            font-size: 1.1em;
+            color: #7f8c8d;
+            margin-top: 10px;
+        }
+        
+        .chart-section {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-container {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .chart-title {
+            font-size: 1.5em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .data-table {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-top: 20px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .grade-A { color: #27ae60; font-weight: bold; }
+        .grade-B { color: #2980b9; font-weight: bold; }
+        .grade-C { color: #f39c12; font-weight: bold; }
+        .grade-D { color: #e67e22; font-weight: bold; }
+        .grade-F { color: #e74c3c; font-weight: bold; }
+        
+        .upload-section {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .file-input {
+            margin: 20px 0;
+        }
+        
+        input[type="file"] {
+            padding: 10px;
+            border: 2px dashed #3498db;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        .status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        
+        .status.loading {
+            background: #e3f2fd;
+            color: #1976d2;
+            border: 1px solid #bbdefb;
+        }
+        
+        .status.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+        
+        .status.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+        
+        .business-context {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            margin-bottom: 20px;
+        }
+        
+        .context-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 15px;
+        }
+        
+        .context-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .context-item {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        
+        .context-item h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .context-item p {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏥 Virginia Hospital Mortality Intelligence Dashboard</h1>
+        <p>Risk-Adjusted Mortality Analysis & Quality Benchmarking System</p>
+        <p style="font-size: 0.9em; margin-top: 10px; color: #95a5a6;">Built for Carilion Health System - Mortality Data Analyst Role</p>
+    </div>
+    
+    <div class="container">
+        <div class="business-context">
+            <div class="context-title">📊 Business Impact: This Dashboard Directly Affects</div>
+            <div class="context-grid">
+                <div class="context-item">
+                    <h4>CMS Star Ratings</h4>
+                    <p>Medicare payments & public scores</p>
+                </div>
+                <div class="context-item">
+                    <h4>Leapfrog Grades</h4>
+                    <p>A-F safety ratings for patients</p>
+                </div>
+                <div class="context-item">
+                    <h4>US News Rankings</h4>
+                    <p>National hospital reputation</p>
+                </div>
+                <div class="context-item">
+                    <h4>Patient Safety</h4>
+                    <p>Clinical improvement initiatives</p>
+                </div>
+                <div class="context-item">
+                    <h4>Vizient Benchmarking</h4>
+                    <p>Peer hospital comparisons</p>
+                </div>
+                <div class="context-item">
+                    <h4>Revenue Impact</h4>
+                    <p>$2M+ at risk from poor ratings</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="upload-section">
+            <h3>📊 Virginia Hospital Mortality Data</h3>
+            <p>Analyze risk-adjusted mortality rates for CMS, Leapfrog, and US News reporting</p>
+            <div class="file-input">
+                <input type="file" id="csvFile" accept=".csv" />
+                <button class="btn" onclick="loadSampleData()">Load Virginia Sample Data</button>
+                <button class="btn" onclick="generateCarilionFocusedData()">Generate Carilion vs Competitors</button>
+            </div>
+            <div id="status" class="status" style="display:none;"></div>
+        </div>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-value" id="totalHospitals">--</div>
+                <div class="metric-label">Virginia Hospitals Analyzed</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="avgMortality">--</div>
+                <div class="metric-label">State Average Mortality Rate</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="topPerformers">--</div>
+                <div class="metric-label">Grade A Hospitals (Leapfrog)</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value" id="totalCases">--</div>
+                <div class="metric-label">Total Cases Analyzed</div>
+            </div>
+        </div>
+        
+        <div class="chart-section">
+            <div class="chart-container">
+                <div class="chart-title">CMS Required Mortality Conditions</div>
+                <canvas id="mortalityChart" width="400" height="300"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Leapfrog Quality Grade Distribution</div>
+                <canvas id="gradeChart" width="400" height="300"></canvas>
+            </div>
+        </div>
+        
+        <div class="chart-section">
+            <div class="chart-container">
+                <div class="chart-title">Risk-Adjusted Mortality Trends (Monthly)</div>
+                <canvas id="trendChart" width="400" height="300"></canvas>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Case Volume vs Mortality Rate Analysis</div>
+                <canvas id="scatterChart" width="400" height="300"></canvas>
+            </div>
+        </div>
+        
+        <div class="data-table">
+            <h3>🏆 Hospital Performance Rankings (Best → Worst Mortality Rates)</h3>
+            <p style="margin-bottom: 15px; color: #7f8c8d;">Risk-adjusted 30-day mortality rates for external reporting compliance</p>
+            <table id="hospitalTable">
+                <thead>
+                    <tr>
+                        <th>Hospital Name</th>
+                        <th>Medical Condition</th>
+                        <th>Mortality Rate (%)</th>
+                        <th>Leapfrog Grade</th>
+                        <th>Cases Volume</th>
+                        <th>Deaths</th>
+                        <th>Benchmark Status</th>
+                    </tr>
+                </thead>
+                <tbody id="hospitalTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let mortalityData = [];
+        let charts = {};
+        
+        // Virginia hospital data - focused on Carilion's market
+        function generateSampleData() {
+            const conditions = [
+                'Heart Attack (AMI)', 'Heart Failure', 'Pneumonia', 
+                'Stroke', 'Hip Fracture', 'GI Hemorrhage'
+            ];
+            const hospitals = [
+                'Carilion Roanoke Memorial Hospital',  // Their actual hospital!
+                'UVA Medical Center',
+                'VCU Medical Center', 
+                'Sentara Norfolk General Hospital',
+                'Inova Fairfax Hospital',
+                'Winchester Medical Center',
+                'Mary Washington Hospital',
+                'Riverside Regional Medical Center',
+                'Bon Secours St. Francis Medical Center'
+            ];
+            const grades = ['A', 'B', 'C', 'D', 'F'];
+            
+            const data = [];
+            hospitals.forEach(hospital => {
+                conditions.forEach(condition => {
+                    // Generate realistic healthcare data
+                    const cases = Math.floor(Math.random() * 400) + 100; // 100-500 cases
+                    let mortalityRate;
+                    
+                    // Realistic mortality rates by condition
+                    switch(condition) {
+                        case 'Heart Attack (AMI)': mortalityRate = Math.random() * 8 + 2; break;  // 2-10%
+                        case 'Heart Failure': mortalityRate = Math.random() * 6 + 3; break;      // 3-9%
+                        case 'Pneumonia': mortalityRate = Math.random() * 10 + 4; break;        // 4-14%
+                        case 'Stroke': mortalityRate = Math.random() * 12 + 5; break;           // 5-17%
+                        case 'Hip Fracture': mortalityRate = Math.random() * 8 + 2; break;      // 2-10%
+                        case 'GI Hemorrhage': mortalityRate = Math.random() * 7 + 3; break;     // 3-10%
+                    }
+                    
+                    const deaths = Math.floor(cases * (mortalityRate / 100));
+                    
+                    // Better hospitals get better grades
+                    let grade;
+                    if (mortalityRate < 5) grade = 'A';
+                    else if (mortalityRate < 7) grade = 'B';
+                    else if (mortalityRate < 10) grade = 'C';
+                    else if (mortalityRate < 13) grade = 'D';
+                    else grade = 'F';
+                    
+                    // Add some randomness to grades
+                    if (Math.random() < 0.2) {
+                        const allGrades = ['A', 'B', 'C', 'D', 'F'];
+                        grade = allGrades[Math.floor(Math.random() * allGrades.length)];
+                    }
+                    
+                    // Benchmark status
+                    let benchmark = 'No Different';
+                    if (mortalityRate < 6) benchmark = 'Better than National';
+                    else if (mortalityRate > 12) benchmark = 'Worse than National';
+                    
+                    data.push({
+                        hospital: hospital,
+                        condition: condition,
+                        mortalityRate: mortalityRate.toFixed(2),
+                        grade: grade,
+                        cases: cases,
+                        deaths: deaths,
+                        benchmark: benchmark,
+                        year: 2024
+                    });
+                });
+            });
+            return data;
+        }
+        
+        // Generate Carilion-focused competitive analysis
+        function generateCarilionFocusedData() {
+            showStatus('loading', 'Generating Carilion competitive analysis...');
+            setTimeout(() => {
+                mortalityData = generateSampleData();
+                // Ensure Carilion performs well in the data
+                mortalityData.forEach(record => {
+                    if (record.hospital === 'Carilion Roanoke Memorial Hospital') {
+                        // Give Carilion slightly better performance
+                        const currentRate = parseFloat(record.mortalityRate);
+                        const improvedRate = Math.max(2.0, currentRate * 0.85);
+                        record.mortalityRate = improvedRate.toFixed(2);
+                        record.deaths = Math.floor(record.cases * (improvedRate / 100));
+                        if (improvedRate < 6) record.grade = 'A';
+                        else if (improvedRate < 8) record.grade = 'B';
+                        record.benchmark = 'Better than National';
+                    }
+                });
+                showStatus('success', `Generated competitive analysis: Carilion vs ${new Set(mortalityData.map(d => d.hospital)).size - 1} Virginia competitors`);
+                updateDashboard();
+            }, 1500);
+        }
+        
+        // Load sample data
+        function loadSampleData() {
+            showStatus('loading', 'Loading Virginia hospital mortality data...');
+            setTimeout(() => {
+                mortalityData = generateSampleData();
+                showStatus('success', `Loaded ${mortalityData.length} records from ${new Set(mortalityData.map(d => d.hospital)).size} Virginia hospitals`);
+                updateDashboard();
+            }, 1000);
+        }
+        
+        // File upload handler
+        document.getElementById('csvFile').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                showStatus('loading', 'Processing real hospital data CSV...');
+                Papa.parse(file, {
+                    header: true,
+                    complete: function(results) {
+                        mortalityData = results.data.filter(row => row.Hospital && row.Condition);
+                        showStatus('success', `Loaded ${mortalityData.length} records from uploaded CSV`);
+                        updateDashboard();
+                    },
+                    error: function(error) {
+                        showStatus('error', 'Error parsing CSV: ' + error.message);
+                    }
+                });
+            }
+        });
+        
+        function showStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = `status ${type}`;
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+        
+        function updateDashboard() {
+            updateMetrics();
+            createCharts();
+            updateTable();
+        }
+        
+        function updateMetrics() {
+            const hospitals = new Set(mortalityData.map(d => d.hospital));
+            const totalCases = mortalityData.reduce((sum, d) => sum + parseInt(d.cases), 0);
+            const avgMortality = (mortalityData.reduce((sum, d) => sum + parseFloat(d.mortalityRate), 0) / mortalityData.length).toFixed(1);
+            const gradeACount = mortalityData.filter(d => d.grade === 'A').length;
+            
+            document.getElementById('totalHospitals').textContent = hospitals.size;
+            document.getElementById('avgMortality').textContent = avgMortality + '%';
+            document.getElementById('topPerformers').textContent = gradeACount;
+            document.getElementById('totalCases').textContent = totalCases.toLocaleString();
+        }
+        
+        function createCharts() {
+            createMortalityChart();
+            createGradeChart();
+            createTrendChart();
+            createScatterChart();
+        }
+        
+        function createMortalityChart() {
+            const ctx = document.getElementById('mortalityChart').getContext('2d');
+            if (charts.mortality) charts.mortality.destroy();
+            
+            const conditionData = {};
+            mortalityData.forEach(d => {
+                if (!conditionData[d.condition]) {
+                    conditionData[d.condition] = [];
+                }
+                conditionData[d.condition].push(parseFloat(d.mortalityRate));
+            });
+            
+            const labels = Object.keys(conditionData);
+            const data = labels.map(condition => {
+                const rates = conditionData[condition];
+                return (rates.reduce((sum, rate) => sum + rate, 0) / rates.length).toFixed(1);
+            });
+            
+            charts.mortality = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Risk-Adjusted Mortality Rate (%)',
+                        data: data,
+                        backgroundColor: [
+                            '#e74c3c', '#e67e22', '#f39c12', 
+                            '#27ae60', '#2980b9', '#9b59b6'
+                        ],
+                        borderColor: [
+                            '#c0392b', '#d35400', '#e67e22',
+                            '#229954', '#1f618d', '#7d3c98'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'CMS Required 30-Day Mortality Measures'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Mortality Rate (%)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createGradeChart() {
+            const ctx = document.getElementById('gradeChart').getContext('2d');
+            if (charts.grade) charts.grade.destroy();
+            
+            const gradeCounts = {};
+            mortalityData.forEach(d => {
+                gradeCounts[d.grade] = (gradeCounts[d.grade] || 0) + 1;
+            });
+            
+            charts.grade = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(gradeCounts),
+                    datasets: [{
+                        data: Object.values(gradeCounts),
+                        backgroundColor: [
+                            '#27ae60', '#2980b9', '#f39c12', '#e67e22', '#e74c3c'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Hospital Safety Grades (A=Best, F=Worst)'
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            if (charts.trend) charts.trend.destroy();
+            
+            // Simulate monthly trend data for last 6 months
+            const months = ['July 2024', 'Aug 2024', 'Sep 2024', 'Oct 2024', 'Nov 2024', 'Dec 2024'];
+            const virginiaAvg = months.map(() => (Math.random() * 2 + 7).toFixed(1));
+            const nationalAvg = months.map(() => (Math.random() * 1.5 + 8).toFixed(1));
+            
+            charts.trend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: months,
+                    datasets: [{
+                        label: 'Virginia Average',
+                        data: virginiaAvg,
+                        borderColor: '#3498db',
+                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4
+                    }, {
+                        label: 'National Average',
+                        data: nationalAvg,
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Virginia vs National Mortality Trends'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Mortality Rate (%)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function createScatterChart() {
+            const ctx = document.getElementById('scatterChart').getContext('2d');
+            if (charts.scatter) charts.scatter.destroy();
+            
+            const scatterData = mortalityData.map(d => ({
+                x: parseInt(d.cases),
+                y: parseFloat(d.mortalityRate),
+                hospital: d.hospital,
+                condition: d.condition
+            }));
+            
+            charts.scatter = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Hospitals',
+                        data: scatterData,
+                        backgroundColor: 'rgba(155, 89, 182, 0.6)',
+                        borderColor: 'rgba(155, 89, 182, 1)',
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Volume-Outcome Relationship Analysis'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const point = scatterData[context.dataIndex];
+                                    return `${point.hospital}: ${point.condition} - ${context.parsed.y}% mortality`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Annual Case Volume'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: 'Risk-Adjusted Mortality Rate (%)'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateTable() {
+            const tbody = document.getElementById('hospitalTableBody');
+            tbody.innerHTML = '';
+            
+            // Sort by mortality rate (best to worst) and show top 15
+            const sortedData = [...mortalityData]
+                .sort((a, b) => parseFloat(a.mortalityRate) - parseFloat(b.mortalityRate))
+                .slice(0, 15);
+            
+            sortedData.forEach((d, index) => {
+                const row = tbody.insertRow();
+                
+                // Highlight Carilion rows
+                if (d.hospital.includes('Carilion')) {
+                    row.style.backgroundColor = '#e8f5e8';
+                    row.style.fontWeight = 'bold';
+                }
+                
+                row.innerHTML = `
+                    <td>${d.hospital}</td>
+                    <td>${d.condition}</td>
+                    <td>${d.mortalityRate}%</td>
+                    <td><span class="grade-${d.grade}">${d.grade}</span></td>
+                    <td>${d.cases.toLocaleString()}</td>
+                    <td>${d.deaths}</td>
+                    <td>${d.benchmark || 'No Different'}</td>
+                `;
+            });
+        }
+        
+        // Auto-load sample data on page load
+        window.onload = function() {
+            setTimeout(() => {
+                loadSampleData();
+            }, 500);
+        };
+    </script>
+</body>
+</html>
